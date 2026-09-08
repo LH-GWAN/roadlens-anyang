@@ -76,6 +76,35 @@ def bullet(text: str) -> None:
     st.markdown("- " + str(text))
 
 
+def read_exif_gps(image_bytes: bytes) -> tuple[float, float] | None:
+    """사진 EXIF 의 GPS 태그에서 (위도, 경도)를 읽는다. 없거나 깨져 있으면 None."""
+    try:
+        import io
+
+        from PIL import Image
+
+        exif = Image.open(io.BytesIO(image_bytes)).getexif()
+        gps = exif.get_ifd(0x8825)  # GPSInfo IFD
+        if not gps:
+            return None
+
+        def to_deg(value):
+            d, m, sec = (float(v) for v in value)
+            return d + m / 60.0 + sec / 3600.0
+
+        lat = to_deg(gps[2])
+        lon = to_deg(gps[4])
+        if str(gps.get(1, "N")).upper().startswith("S"):
+            lat = -lat
+        if str(gps.get(3, "E")).upper().startswith("W"):
+            lon = -lon
+        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            return None
+        return lat, lon
+    except Exception:
+        return None
+
+
 # ---------------------------------------------------------------------------
 # 데이터 로딩 (캐시)
 # ---------------------------------------------------------------------------
@@ -191,6 +220,20 @@ def page_intro(cfg: config.AppConfig) -> None:
 
     st.subheader("AI 의 역할과 한계")
     bullet("AI 는 업로드된 사진에서 파손으로 보이는 영역을 표시하고 신뢰도를 제시합니다.")
+
+    st.subheader("화면에서 조정하는 값")
+    st.markdown(
+        """
+- 밀집 판정 반경(m): 이 거리 안에 있는 파손 지점끼리 하나의 밀집구간으로 묶습니다. 기본 150m.
+- 밀집 최소 건수: 반경 안에 이 건수 이상 모여야 밀집구간으로 인정합니다. 기본 5건.
+- 상위 지점 수: 밀집구간을 건수 많은 순으로 몇 곳까지 우선순위 계산 대상으로 삼을지 정합니다. 기본 10곳.
+- 이력 밀도 계산 반경(m): 대상 지점 주변 이 거리 안의 과거 파손 이력 건수를 셉니다. 기본 300m.
+- 밀도 100점 기준 건수: 반경 안 건수가 이 값 이상이면 과거 이력 밀도 점수가 100점입니다. 기본 20건.
+- 보호구역 인접도 0점 거리(m): 가장 가까운 어린이보호구역이 이 거리보다 멀면 인접도 0점, 가까울수록 100점에 가까워집니다. 기본 500m.
+- 신뢰도 임계값(사진 분석): 이 값보다 낮은 신뢰도의 탐지 결과는 표시하지 않습니다. 기본 0.25.
+- 강수량(mm): 30mm 이상이면 강수 영향 점수가 100점입니다. 기상청 키가 없으면 직접 입력합니다.
+        """
+    )
 
     st.subheader("현재 실행 환경 상태")
     status_rows = [
@@ -450,6 +493,27 @@ def page_photo_analysis(cfg: config.AppConfig) -> None:
         bullet("이미지를 읽지 못했습니다. 다른 파일을 시도하세요.")
         return
 
+    # 촬영 위치: EXIF GPS 가 있으면 채워 넣고, 없으면 직접 입력
+    st.subheader("촬영 위치")
+    exif_gps = read_exif_gps(uploaded.getvalue())
+    if exif_gps:
+        bullet("사진 정보(EXIF)에서 촬영 위치를 읽었습니다. 다르면 수정하세요.")
+    else:
+        bullet("사진에 위치 정보가 없습니다. 촬영 위치를 직접 입력하세요.")
+    loc_key = f"{uploaded.name}_{uploaded.size}"
+    lcol1, lcol2, lcol3 = st.columns(3)
+    photo_lat = lcol1.number_input(
+        "위도", value=float(exif_gps[0] if exif_gps else config.ANYANG_CENTER[0]),
+        format="%.6f", key=f"photo_lat_{loc_key}",
+    )
+    photo_lon = lcol2.number_input(
+        "경도", value=float(exif_gps[1] if exif_gps else config.ANYANG_CENTER[1]),
+        format="%.6f", key=f"photo_lon_{loc_key}",
+    )
+    photo_road = lcol3.text_input("도로명 (선택)", value="", key=f"photo_road_{loc_key}")
+    photo_location = {"lat": float(photo_lat), "lon": float(photo_lon),
+                      "road_address": photo_road.strip()}
+
     # 1) 비식별 처리
     st.subheader("1단계 · 비식별 처리")
     anon = anonymize_image(
@@ -478,6 +542,7 @@ def page_photo_analysis(cfg: config.AppConfig) -> None:
             "available": False,
             "detections": None,
             "damage_area_ratio": None,
+            **photo_location,
         }
         return
 
@@ -495,7 +560,7 @@ def page_photo_analysis(cfg: config.AppConfig) -> None:
         bullet(result.reason)
         st.image(cv2.cvtColor(working, cv2.COLOR_BGR2RGB), caption="비식별 처리 결과",
                  width="stretch")
-        st.session_state["photo_result"] = result.to_dict()
+        st.session_state["photo_result"] = {**result.to_dict(), **photo_location}
         return
 
     icol1, icol2 = st.columns(2)
@@ -550,6 +615,7 @@ def page_photo_analysis(cfg: config.AppConfig) -> None:
     # 다음 화면에서 사용할 수 있도록 저장
     payload = result.to_dict()
     payload["photo_severity"] = severity
+    payload.update(photo_location)
     st.session_state["photo_result"] = payload
     st.session_state["photo_privacy"] = anon.to_dict()
 
@@ -565,6 +631,9 @@ def page_photo_analysis(cfg: config.AppConfig) -> None:
             cv2.imwrite(str(original_path), image_bgr)
 
         inspection_id = repository.create_inspection(
+            lat=photo_location["lat"],
+            lon=photo_location["lon"],
+            road_address=photo_location["road_address"] or None,
             anonymized_image_path=str(anon_path),
             original_image_path=str(original_path) if original_path else None,
             ai_result=payload,
@@ -678,7 +747,22 @@ def page_priority(cfg: config.AppConfig) -> None:
     photo_result = st.session_state.get("photo_result")
     photo_severity = (photo_result or {}).get("photo_severity")
     if photo_severity is None:
-        bullet("'3. 사진 분석' 화면에서 사진을 분석하면 사진상 파손 정도가 반영됩니다.")
+        bullet(
+            "'3. 사진 분석' 화면에서 사진을 분석하면 촬영 위치가 대상 지점으로 추가되고 "
+            "사진상 파손 정도가 그 지점에 반영됩니다."
+        )
+    elif photo_result.get("lat") is not None and photo_result.get("lon") is not None:
+        targets.append(
+            {
+                "name": "사진 분석 지점",
+                "lat": float(photo_result["lat"]),
+                "lon": float(photo_result["lon"]),
+                "road_address": photo_result.get("road_address") or "",
+                "cluster_count": None,
+                "is_photo": True,
+            }
+        )
+        bullet("사진 분석 지점(촬영 위치)을 대상에 추가했습니다. 사진상 파손 정도는 이 지점에만 반영됩니다.")
 
     # --- 계산 ---
     importance_table = road_importance_table(damage)
@@ -702,7 +786,7 @@ def page_priority(cfg: config.AppConfig) -> None:
 
         risk = compute_risk_score(
             history_density=density,
-            photo_severity=photo_severity,
+            photo_severity=photo_severity if target.get("is_photo") else None,
             school_zone=sz_score,
             road_importance=importance,
             rainfall=rainfall_score(rain_mm),
