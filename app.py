@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import json
 from datetime import date, datetime
 from pathlib import Path
 
@@ -53,7 +52,6 @@ from src.spatial_analysis import (
 
 st.set_page_config(
     page_title="RoadLens Anyang",
-    page_icon="🛣️",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -71,6 +69,11 @@ AI_DISCLAIMER = (
     "AI 분석 결과는 참고 정보이며 보수 여부를 확정하지 않습니다. "
     "최종 판단은 담당자 확인 결과로 기록됩니다."
 )
+
+
+def bullet(text: str) -> None:
+    """강조 상자 대신 '- 내용' 한 줄로 안내 문구를 표시한다."""
+    st.markdown("- " + str(text))
 
 
 # ---------------------------------------------------------------------------
@@ -105,14 +108,9 @@ def get_config() -> config.AppConfig:
 def data_origin_badge(is_sample: bool) -> None:
     """실제 데이터 / 테스트용 샘플을 화면에서 구분해 표시한다."""
     if is_sample:
-        st.error(
-            "**테스트 전용 샘플 데이터를 표시하고 있습니다. 실제 안양시 데이터가 아닙니다.**  \n"
-            "실제 데이터를 보려면 공공데이터포털에서 CSV 를 내려받아 "
-            "`data/raw/anyang_road_damage.csv` 로 저장한 뒤 새로고침하세요.",
-            icon="⚠️",
-        )
+        bullet("테스트용 샘플 데이터를 표시하고 있습니다. 실제 안양시 데이터가 아닙니다.")
     else:
-        st.success("실제 내려받은 공공데이터 파일을 사용하고 있습니다.", icon="✅")
+        bullet("안양시 공공데이터(공공데이터포털)를 사용하고 있습니다.")
 
 
 # ---------------------------------------------------------------------------
@@ -125,11 +123,11 @@ def page_intro(cfg: config.AppConfig) -> None:
     st.subheader("서비스 목적")
     st.markdown(
         """
-    - 안양시 **과거 도로부속물 파손 이력**을 지도에서 확인합니다.
-    - 현장에서 찍은 도로 사진을 업로드하면 **포트홀·균열을 탐지**합니다.
+    - 안양시 과거 도로부속물 파손 이력을 지도에서 확인합니다.
+    - 현장에서 찍은 도로 사진을 업로드하면 포트홀·균열을 탐지합니다.
     - 과거 이력 밀도, 사진상 파손 정도, 어린이보호구역 인접도, 도로구간 중요도,
-      강수 영향을 결합해 **점검 우선순위**를 계산합니다.
-    - 선택한 점검 대상의 **순찰 순서**를 만들고 **처리상태**를 기록합니다.
+      강수 영향을 결합해 점검 우선순위를 계산합니다.
+    - 선택한 점검 대상의 순찰 순서를 만들고 처리상태를 기록합니다.
         """
     )
 
@@ -182,17 +180,7 @@ def page_intro(cfg: config.AppConfig) -> None:
     )
 
     st.subheader("AI 의 역할과 한계")
-    st.warning(
-        f"""
-**{AI_DISCLAIMER}**
-
-- AI 는 업로드된 사진에서 파손으로 보이는 영역을 표시하고 신뢰도를 제시합니다.
-- AI 는 보수 필요 여부, 보수 공법, 예산을 결정하지 않습니다.
-- 화면의 지도 데이터는 **과거 파손 이력**이며 현재 도로 상태가 아닙니다.
-- 담당자가 현장에서 확인한 결과는 `담당자 확인 결과` 필드에 따로 기록됩니다.
-        """,
-        icon="ℹ️",
-    )
+    bullet("AI 는 업로드된 사진에서 파손으로 보이는 영역을 표시하고 신뢰도를 제시합니다.")
 
     st.subheader("현재 실행 환경 상태")
     status_rows = [
@@ -228,7 +216,7 @@ def page_intro(cfg: config.AppConfig) -> None:
                 st.write("- " + note)
 
     st.subheader("개인정보 처리 안내")
-    st.info(config.PHOTO_RETENTION_NOTICE, icon="🔒")
+    bullet(config.PHOTO_RETENTION_NOTICE)
 
 
 # ---------------------------------------------------------------------------
@@ -236,36 +224,21 @@ def page_intro(cfg: config.AppConfig) -> None:
 # ---------------------------------------------------------------------------
 def page_history_map(cfg: config.AppConfig) -> None:
     st.title("과거 파손 이력 지도")
-    st.caption("표시되는 지점은 모두 **과거에 수집된 파손 이력**이며, 현재 파손 상태가 아닙니다.")
+    st.caption("표시되는 지점은 모두 과거에 수집된 파손 이력이며, 현재 파손 상태가 아닙니다.")
 
     damage, load_report, clean_report = load_damage_data()
     data_origin_badge(load_report.is_sample)
 
     if damage.empty:
-        st.warning(
+        bullet(
             "표시할 데이터가 없습니다. `data/raw/anyang_road_damage.csv` 를 배치한 뒤 다시 실행하세요.",
-            icon="⚠️",
         )
         with st.expander("불러오기 기록"):
             for message in load_report.messages:
                 st.write("- " + message)
         return
 
-    with st.expander("데이터 정제 결과 (제외 사유 · 중복 제거)", expanded=False):
-        col1, col2, col3 = st.columns(3)
-        col1.metric("원본 건수", f"{clean_report.rows_in:,}")
-        col2.metric("제외 건수", f"{clean_report.excluded_total:,}")
-        col3.metric("중복 제거", f"{clean_report.duplicates_removed:,}")
-        if clean_report.excluded_counts:
-            st.dataframe(
-                pd.DataFrame(
-                    [{"제외 사유": k, "건수": v} for k, v in clean_report.excluded_counts.items()]
-                ),
-                width="stretch",
-                hide_index=True,
-            )
-        for message in clean_report.messages + load_report.messages:
-            st.write("- " + message)
+    bullet(f"데이터 정제 완료 (사용 {len(damage):,}건)")
 
     # --- 필터 ---
     st.subheader("필터")
@@ -306,7 +279,7 @@ def page_history_map(cfg: config.AppConfig) -> None:
             filtered[COL_ROAD_NAME].astype(str).str.contains(road_query, na=False)
         ]
 
-    st.write(f"**필터 결과: {len(filtered):,}건** (전체 {len(damage):,}건)")
+    st.write(f"필터 결과: {len(filtered):,}건 (전체 {len(damage):,}건)")
 
     # --- 표시 방식 ---
     st.subheader("지도")
@@ -321,7 +294,7 @@ def page_history_map(cfg: config.AppConfig) -> None:
     cluster_min = mcol3.slider("밀집 최소 건수", 2, 30, 5)
 
     if filtered.empty:
-        st.warning("필터 조건에 해당하는 데이터가 없습니다.")
+        bullet("필터 조건에 해당하는 데이터가 없습니다.")
         return
 
     try:
@@ -329,7 +302,7 @@ def page_history_map(cfg: config.AppConfig) -> None:
         from folium.plugins import HeatMap, MarkerCluster
         from streamlit_folium import st_folium
     except ImportError as exc:
-        st.error(f"지도 라이브러리를 불러오지 못했습니다: {exc}")
+        bullet(f"지도 라이브러리를 불러오지 못했습니다: {exc}")
         st.dataframe(filtered.head(200), width="stretch")
         return
 
@@ -342,7 +315,7 @@ def page_history_map(cfg: config.AppConfig) -> None:
         max_markers = 5000
         subset = filtered.head(max_markers)
         if len(filtered) > max_markers:
-            st.info(
+            bullet(
                 f"마커는 상위 {max_markers:,}건만 그립니다. "
                 "전체 분포는 히트맵 또는 밀집구간 레이어를 사용하세요."
             )
@@ -376,7 +349,7 @@ def page_history_map(cfg: config.AppConfig) -> None:
         clustered, info = compute_clusters(filtered, float(cluster_eps), int(cluster_min))
         summary = cluster_summary(clustered)
         if summary.empty:
-            st.info(
+            bullet(
                 info.get("reason", "밀집구간이 탐지되지 않았습니다. 반경 또는 최소 건수를 조정하세요.")
             )
         else:
@@ -424,17 +397,17 @@ def page_history_map(cfg: config.AppConfig) -> None:
 # ---------------------------------------------------------------------------
 def page_photo_analysis(cfg: config.AppConfig) -> None:
     st.title("사진 분석")
-    st.caption("업로드한 사진은 **비식별 처리 후** AI 탐지를 수행합니다.")
+    st.caption("업로드한 사진은 비식별 처리 후 AI 탐지를 수행합니다.")
 
-    st.info(config.PHOTO_RETENTION_NOTICE, icon="🔒")
+    bullet(config.PHOTO_RETENTION_NOTICE)
 
     with st.expander("개인정보 처리 설정", expanded=False):
         st.write(
-            f"- 얼굴 비식별 처리: **{'사용' if cfg.face_blur_enabled else '미사용'}** "
+            f"- 얼굴 비식별 처리: {'사용' if cfg.face_blur_enabled else '미사용'} "
             "(.env 의 `FACE_BLUR_ENABLED`)"
         )
         st.write(
-            f"- 원본 사진 저장: **{'저장함' if cfg.store_original_image else '저장하지 않음(기본값)'}** "
+            f"- 원본 사진 저장: {'저장함' if cfg.store_original_image else '저장하지 않음(기본값)'} "
             "(.env 의 `STORE_ORIGINAL_IMAGE`)"
         )
         experimental_plate = st.checkbox(
@@ -447,7 +420,7 @@ def page_photo_analysis(cfg: config.AppConfig) -> None:
         )
 
     if not cfg.model_available:
-        st.error(MODEL_MISSING_MESSAGE, icon="🚫")
+        bullet(MODEL_MISSING_MESSAGE)
         st.caption(
             "모델이 없으므로 탐지 결과를 만들어 표시하지 않습니다. "
             "비식별 처리 결과만 확인할 수 있습니다."
@@ -464,7 +437,7 @@ def page_photo_analysis(cfg: config.AppConfig) -> None:
     file_bytes = np.frombuffer(uploaded.getvalue(), dtype=np.uint8)
     image_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
     if image_bgr is None:
-        st.error("이미지를 읽지 못했습니다. 다른 파일을 시도하세요.")
+        bullet("이미지를 읽지 못했습니다. 다른 파일을 시도하세요.")
         return
 
     # 1) 비식별 처리
@@ -485,10 +458,9 @@ def page_photo_analysis(cfg: config.AppConfig) -> None:
     # 2) AI 탐지
     st.subheader("2단계 · AI 분석 결과")
     if not cfg.model_available:
-        st.warning(
+        bullet(
             "모델 파일이 없어 파손 탐지를 수행하지 않았습니다. "
             "아래 이미지는 비식별 처리만 적용된 결과입니다.",
-            icon="⚠️",
         )
         st.image(cv2.cvtColor(working, cv2.COLOR_BGR2RGB), caption="비식별 처리 결과",
                  width="stretch")
@@ -510,7 +482,7 @@ def page_photo_analysis(cfg: config.AppConfig) -> None:
     )
 
     if not result.available:
-        st.error(result.reason, icon="🚫")
+        bullet(result.reason)
         st.image(cv2.cvtColor(working, cv2.COLOR_BGR2RGB), caption="비식별 처리 결과",
                  width="stretch")
         st.session_state["photo_result"] = result.to_dict()
@@ -556,9 +528,9 @@ def page_photo_analysis(cfg: config.AppConfig) -> None:
             hide_index=True,
         )
     else:
-        st.info("탐지된 파손이 없습니다. (분석은 수행되었습니다)")
+        bullet("탐지된 파손이 없습니다. (분석은 수행되었습니다)")
 
-    st.warning(AI_DISCLAIMER, icon="ℹ️")
+    bullet(AI_DISCLAIMER)
 
     severity = photo_severity_from_detections(
         result.detections, result.damage_area_ratio
@@ -589,7 +561,7 @@ def page_photo_analysis(cfg: config.AppConfig) -> None:
             privacy_result=anon.to_dict(),
             status=InspectionStatus.RECEIVED.value,
         )
-        st.success(
+        bullet(
             f"점검 건 #{inspection_id} 로 접수했습니다. "
             "'6. 처리결과 기록' 화면에서 담당자 확인 결과를 입력하세요."
         )
@@ -600,14 +572,14 @@ def page_photo_analysis(cfg: config.AppConfig) -> None:
 # ---------------------------------------------------------------------------
 def page_priority(cfg: config.AppConfig) -> None:
     st.title("점검 우선순위")
-    st.caption("항목별 점수를 0~100 으로 정규화한 뒤 가중합으로 총점을 계산합니다.")
+    st.caption("지점별 점검 우선순위 점수(0~100)를 계산합니다.")
 
     damage, load_report, _ = load_damage_data()
     school_zones, sz_report, _ = load_school_zone_data()
     data_origin_badge(load_report.is_sample)
 
     if damage.empty:
-        st.warning("파손 이력 데이터가 없어 우선순위를 계산할 수 없습니다.", icon="⚠️")
+        bullet("파손 이력 데이터가 없어 우선순위를 계산할 수 없습니다.")
         return
 
     st.subheader("대상 지점 선택")
@@ -626,7 +598,7 @@ def page_priority(cfg: config.AppConfig) -> None:
         clustered, info = compute_clusters(damage, float(eps), int(min_samples))
         summary = cluster_summary(clustered)
         if summary.empty:
-            st.info(info.get("reason", "밀집구간이 없습니다. 조건을 조정하세요."))
+            bullet(info.get("reason", "밀집구간이 없습니다. 조건을 조정하세요."))
             return
         for row in summary.head(top_n).itertuples(index=False):
             targets.append(
@@ -668,19 +640,18 @@ def page_priority(cfg: config.AppConfig) -> None:
             st.session_state["weather"] = weather
         weather = st.session_state.get("weather")
         if weather and weather.get("available"):
-            st.success(
+            bullet(
                 f"기상청 단기예보 (발표 {weather['base']}, 예보 {weather['fcst']}): "
                 f"강수량 {weather['rain_mm']}mm, 강수확률 {weather.get('pop')}%"
             )
             rain_mm = float(weather["rain_mm"])
         elif weather:
-            st.error(weather.get("reason", "기상청 조회에 실패했습니다."))
+            bullet(weather.get("reason", "기상청 조회에 실패했습니다."))
             st.caption("강수량을 직접 입력하세요.")
     else:
-        st.warning(
+        bullet(
             "KMA_SERVICE_KEY 가 설정되지 않아 기상청 단기예보를 조회할 수 없습니다. "
             "강수량을 직접 입력하세요.",
-            icon="⚠️",
         )
 
     use_manual = st.checkbox(
@@ -691,17 +662,13 @@ def page_priority(cfg: config.AppConfig) -> None:
                                  value=0.0, step=0.5)
         rain_mm = float(manual)
     elif rain_mm is None:
-        st.caption("강수 정보를 사용하지 않습니다. 이 항목은 계산에서 제외되고 가중치가 재정규화됩니다.")
+        bullet("강수 정보를 사용하지 않습니다.")
 
     # --- 사진 점수 ---
     photo_result = st.session_state.get("photo_result")
     photo_severity = (photo_result or {}).get("photo_severity")
     if photo_severity is None:
-        st.info(
-            "'3. 사진 분석' 화면에서 사진을 분석하면 '사진상 파손 정도'가 반영됩니다. "
-            "현재는 이 항목이 제외되고 가중치가 재정규화됩니다.",
-            icon="ℹ️",
-        )
+        bullet("'3. 사진 분석' 화면에서 사진을 분석하면 사진상 파손 정도가 반영됩니다.")
 
     # --- 계산 ---
     importance_table = road_importance_table(damage)
@@ -742,7 +709,6 @@ def page_priority(cfg: config.AppConfig) -> None:
                 "도로명": target.get("road_address", ""),
                 f"반경 {radius}m 내 과거 이력": count,
                 "보호구역 최근접(m)": round(distance) if distance is not None else None,
-                "제외 항목 수": len(risk.excluded_components),
             }
         )
 
@@ -761,47 +727,6 @@ def page_priority(cfg: config.AppConfig) -> None:
         for name, d in details.items()
     }
 
-    st.subheader("항목별 점수 · 사용/제외 데이터 · 계산식")
-    picked = st.selectbox("지점 선택", table["지점"].tolist())
-    detail = details[picked]
-    risk = detail["risk"]
-
-    comp_rows = []
-    for key, comp in risk.components.items():
-        comp_rows.append(
-            {
-                "항목": comp["label"],
-                "점수(0~100)": (
-                    f"{comp['score']:.1f}" if comp["available"] else "데이터 없음"
-                ),
-                "기본 가중치": comp["base_weight"],
-                "적용 가중치": comp["effective_weight"],
-                "기여 점수": comp["contribution"],
-                "사용 여부": "사용" if comp["available"] else "제외",
-            }
-        )
-    st.dataframe(pd.DataFrame(comp_rows), width="stretch", hide_index=True)
-
-    st.metric("점검 우선순위 총점", f"{risk.total_score:.2f} / 100")
-    st.code(risk.formula, language="text")
-
-    ucol1, ucol2 = st.columns(2)
-    with ucol1:
-        st.write("**사용된 데이터**")
-        used_labels = [risk.components[k]["label"] for k in risk.used_components]
-        st.write("\n".join(f"- {label}" for label in used_labels) or "- 없음")
-    with ucol2:
-        st.write("**제외된 데이터**")
-        excluded_labels = [risk.components[k]["label"] for k in risk.excluded_components]
-        st.write("\n".join(f"- {label}" for label in excluded_labels) or "- 없음")
-
-    for note in risk.notes:
-        st.caption(note)
-
-    st.caption(
-        "주의: '도로구간 중요도'는 도로등급·교통량 데이터가 없어 "
-        "해당 도로구간(노드링크 또는 도로명)에 누적된 과거 이력 건수를 대리지표로 사용합니다."
-    )
 
 
 def _representative_road_key(
@@ -833,21 +758,19 @@ def page_route(cfg: config.AppConfig) -> None:
 
     details = st.session_state.get("priority_details")
     if not details:
-        st.warning(
+        bullet(
             "'4. 점검 우선순위' 화면에서 먼저 우선순위를 계산하세요. "
             "계산된 지점 목록을 여기서 선택할 수 있습니다.",
-            icon="⚠️",
         )
         return
 
     if cfg.routing_api_enabled:
-        st.success("외부 도로망 API 가 활성화되어 실제 도로거리 계산을 사용합니다.", icon="✅")
+        bullet("외부 도로망 API 가 활성화되어 실제 도로거리 계산을 사용합니다.")
         distance_mode = "road_network_api"
     else:
-        st.warning(
-            "도로망 데이터/API 가 연동되지 않아 **직선(Haversine) 거리 기반 근사 경로**를 계산합니다. "
+        bullet(
+            "도로망 데이터/API 가 연동되지 않아 직선(Haversine) 거리 기반 근사 경로를 계산합니다. "
             "실제 주행거리와 다를 수 있습니다.",
-            icon="⚠️",
         )
         distance_mode = DISTANCE_MODE_HAVERSINE
 
@@ -861,7 +784,7 @@ def page_route(cfg: config.AppConfig) -> None:
     points = [(details[n]["lat"], details[n]["lon"]) for n in selected]
 
     if len(points) == 0:
-        st.info("점검 대상을 선택하지 않았습니다. 경로를 계산하지 않습니다.")
+        bullet("점검 대상을 선택하지 않았습니다. 경로를 계산하지 않습니다.")
         return
 
     result = optimize_route(
@@ -877,7 +800,7 @@ def page_route(cfg: config.AppConfig) -> None:
     mcol3.metric("계산 방식", result.solver or "-")
 
     for message in result.messages:
-        st.caption("· " + message)
+        bullet(message)
 
     order_rows = []
     for step, idx in enumerate(result.order, start=1):
@@ -902,7 +825,7 @@ def page_route(cfg: config.AppConfig) -> None:
         import folium
         from streamlit_folium import st_folium
     except ImportError as exc:
-        st.error(f"지도 라이브러리를 불러오지 못했습니다: {exc}")
+        bullet(f"지도 라이브러리를 불러오지 못했습니다: {exc}")
         return
 
     ordered_points = [points[i] for i in result.order]
@@ -946,7 +869,7 @@ def page_route(cfg: config.AppConfig) -> None:
                 is_sample_data=bool(st.session_state.get("is_sample_data", False)),
             )
             created.append(inspection_id)
-        st.success(f"{len(created)}건을 '점검예정' 상태로 등록했습니다. (#{', #'.join(map(str, created))})")
+        bullet(f"{len(created)}건을 '점검예정' 상태로 등록했습니다. (#{', #'.join(map(str, created))})")
 
 
 # ---------------------------------------------------------------------------
@@ -970,7 +893,7 @@ def page_records(cfg: config.AppConfig) -> None:
         status=None if status_filter == "전체" else status_filter
     )
     if not rows:
-        st.info(
+        bullet(
             "등록된 점검 건이 없습니다. "
             "'3. 사진 분석' 또는 '5. 점검목록 및 순찰경로' 화면에서 접수할 수 있습니다."
         )
@@ -1002,7 +925,7 @@ def page_records(cfg: config.AppConfig) -> None:
     selected_id = st.selectbox("점검 건 번호", table["id"].tolist())
     record = repository.get_inspection(int(selected_id))
     if record is None:
-        st.error("선택한 점검 건을 찾을 수 없습니다.")
+        bullet("선택한 점검 건을 찾을 수 없습니다.")
         return
 
     dcol1, dcol2 = st.columns(2)
@@ -1022,9 +945,6 @@ def page_records(cfg: config.AppConfig) -> None:
             st.write("- AI 분석을 수행하지 않았습니다(모델 없음 또는 사진 미첨부).")
         if record["ai_risk_score"] is not None:
             st.write(f"- 점검 우선순위 점수: {record['ai_risk_score']}")
-        if record["ai_risk_breakdown_json"]:
-            with st.expander("우선순위 계산 내역"):
-                st.json(json.loads(record["ai_risk_breakdown_json"]))
         st.caption(AI_DISCLAIMER)
 
     with dcol2:
@@ -1045,7 +965,7 @@ def page_records(cfg: config.AppConfig) -> None:
             repository.set_reviewer_judgement(
                 int(selected_id), judgement, note=note, reviewer_name=reviewer_name
             )
-            st.success("담당자 확인 결과를 저장했습니다. AI 분석 결과는 변경되지 않습니다.")
+            bullet("담당자 확인 결과를 저장했습니다. AI 분석 결과는 변경되지 않습니다.")
             st.rerun()
 
     st.markdown("#### 처리상태 변경")
@@ -1058,7 +978,7 @@ def page_records(cfg: config.AppConfig) -> None:
     status_note = scol2.text_input("변경 사유", value="")
     if scol3.button("상태 변경"):
         repository.update_status(int(selected_id), new_status, note=status_note)
-        st.success(f"#{selected_id} 상태를 '{new_status}' 로 변경했습니다.")
+        bullet(f"#{selected_id} 상태를 '{new_status}' 로 변경했습니다.")
         st.rerun()
 
     history = repository.get_status_history(int(selected_id))
@@ -1086,7 +1006,7 @@ def page_records(cfg: config.AppConfig) -> None:
     st.caption(config.PHOTO_RETENTION_NOTICE)
     if st.button("이 점검 건 삭제 (보유기간 경과 처리)"):
         repository.delete_inspection(int(selected_id))
-        st.success(f"#{selected_id} 을(를) 삭제했습니다.")
+        bullet(f"#{selected_id} 을(를) 삭제했습니다.")
         st.rerun()
 
 
@@ -1101,7 +1021,7 @@ def main() -> None:
         st.caption("안양시 도로 점검 우선순위 지원 시제품")
         page = st.radio("화면 이동", PAGES, label_visibility="collapsed")
         st.divider()
-        st.markdown("**실행 상태**")
+        st.markdown("실행 상태")
         st.write("모델: " + ("사용 가능" if cfg.model_available else "없음"))
         st.write("기상청 API: " + ("사용 가능" if cfg.kma_enabled else "키 없음"))
         st.write("원본 사진 저장: " + ("함" if cfg.store_original_image else "안 함"))
