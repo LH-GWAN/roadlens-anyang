@@ -1,0 +1,132 @@
+{
+  "generated_at": "2026-09-08T04:54:44.114342+00:00",
+  "run_mode": "smoke_test",
+  "run_name": "rdd2022_smoke_test",
+  "split_strategy": "country_holdout",
+  "excluded_countries": [
+    "United_States",
+    "UnitedStates",
+    "US"
+  ],
+  "countries_used": [
+    "China_MotorBike",
+    "Czech",
+    "India"
+  ],
+  "model_arch": "yolov8n.pt",
+  "epochs": 3,
+  "batch": 8,
+  "imgsz": 320,
+  "images_per_class_cap": 40,
+  "dataset_counts": {
+    "train": 64,
+    "val": 39,
+    "test": 28
+  },
+  "class_object_counts_by_split": {
+    "train": {
+      "D40": 12,
+      "D10": 63,
+      "D00": 67,
+      "D20": 24
+    },
+    "val": {
+      "D00": 17,
+      "D20": 22,
+      "D40": 50,
+      "D10": 1
+    },
+    "test": {
+      "D00": 27,
+      "D10": 12,
+      "D40": 10,
+      "D20": 5
+    }
+  },
+  "val_overall": {
+    "precision": 0.00042892182957518315,
+    "recall": 0.039090909090909086,
+    "mAP50": 0.0013726774263081317,
+    "mAP50_95": 0.00027597188005177306
+  },
+  "val_per_class": [
+    {
+      "class": "D00",
+      "class_ko": "종방향 균열",
+      "precision": 0.0,
+      "recall": 0.0,
+      "mAP50": 0.0,
+      "mAP50_95": 0.0
+    },
+    {
+      "class": "D10",
+      "class_ko": "횡방향 균열",
+      "precision": 0.0,
+      "recall": 0.0,
+      "mAP50": 0.0,
+      "mAP50_95": 0.0
+    },
+    {
+      "class": "D20",
+      "class_ko": "거북등 균열",
+      "precision": 0.0012825994014536127,
+      "recall": 0.13636363636363635,
+      "mAP50": 0.0054818181818181815,
+      "mAP50_95": 0.0011012200631827886
+    },
+    {
+      "class": "D40",
+      "class_ko": "포트홀",
+      "precision": 0.00043308791684711995,
+      "recall": 0.02,
+      "mAP50": 8.891523414344991e-06,
+      "mAP50_95": 2.6674570243034972e-06
+    }
+  ],
+  "test_overall": {
+    "precision": 0.0,
+    "recall": 0.0,
+    "mAP50": 0.0,
+    "mAP50_95": 0.0
+  },
+  "test_per_class": [
+    {
+      "class": "D00",
+      "class_ko": "종방향 균열",
+      "precision": 0.0,
+      "recall": 0.0,
+      "mAP50": 0.0,
+      "mAP50_95": 0.0
+    },
+    {
+      "class": "D10",
+      "class_ko": "횡방향 균열",
+      "precision": 0.0,
+      "recall": 0.0,
+      "mAP50": 0.0,
+      "mAP50_95": 0.0
+    },
+    {
+      "class": "D20",
+      "class_ko": "거북등 균열",
+      "precision": 0.0,
+      "recall": 0.0,
+      "mAP50": 0.0,
+      "mAP50_95": 0.0
+    },
+    {
+      "class": "D40",
+      "class_ko": "포트홀",
+      "precision": 0.0,
+      "recall": 0.0,
+      "mAP50": 0.0,
+      "mAP50_95": 0.0
+    }
+  ],
+  "environment": {
+    "python": "3.13.15",
+    "ultralytics": "8.4.143",
+    "torch": "2.11.0+cu128",
+    "device": "0"
+  }
+}
