@@ -13,6 +13,7 @@ import pandas as pd
 
 from . import config
 from .schemas import (
+    COL_SOURCE,
     DAMAGE_COLUMN_ALIASES,
     DAMAGE_STANDARD_COLUMNS,
     SCHOOL_ZONE_COLUMN_ALIASES,
@@ -121,35 +122,53 @@ def _apply_mapping(
 
 
 def load_damage_csv(path: Path | None = None) -> tuple[pd.DataFrame, LoadReport]:
-    """안양시 도로부속물 파손 현황 CSV 로딩.
+    """안양시 도로 파손 이력 CSV 로딩.
 
-    실제 데이터 파일이 없으면 샘플(테스트 전용)을 쓰고 is_sample=True 로 표시한다.
+    path 를 주면 그 파일 하나만 읽는다. 주지 않으면 config.DAMAGE_CSV_SOURCES 에
+    있는 파일 중 존재하는 것을 모두 읽어 합치고 'source' 열에 출처 이름을 넣는다.
+    실제 데이터 파일이 하나도 없으면 샘플(테스트 전용)을 쓰고 is_sample=True 로 표시한다.
     """
-    target = Path(path) if path else config.DAMAGE_CSV_PATH
+    if path is not None:
+        sources = [("", Path(path))]
+    else:
+        sources = [(name, p) for name, p in config.DAMAGE_CSV_SOURCES if p.exists()]
+
     is_sample = False
-    if not target.exists():
+    if not sources or not sources[0][1].exists():
+        missing_path = Path(path) if path else config.DAMAGE_CSV_PATH
         if config.SAMPLE_DAMAGE_CSV_PATH.exists():
-            target = config.SAMPLE_DAMAGE_CSV_PATH
+            sources = [("테스트 샘플", config.SAMPLE_DAMAGE_CSV_PATH)]
             is_sample = True
         else:
-            report = LoadReport(source_path=str(target))
+            report = LoadReport(source_path=str(missing_path))
             report.messages.append(
-                f"파일이 없습니다: {target}. "
+                f"파일이 없습니다: {missing_path}. "
                 "공공데이터포털에서 내려받아 data/raw/anyang_road_damage.csv 로 저장하세요."
             )
             empty = pd.DataFrame(columns=DAMAGE_STANDARD_COLUMNS)
             return empty, report
 
-    report = LoadReport(source_path=str(target), is_sample=is_sample)
+    report = LoadReport(
+        source_path="; ".join(str(p) for _, p in sources), is_sample=is_sample
+    )
     if is_sample:
         report.messages.append(
             "실제 안양시 데이터가 없어 테스트 전용 샘플을 표시하고 있습니다. "
             "이 값은 실제 파손 이력이 아닙니다."
         )
-    frame, encoding = read_csv_tolerant(target)
-    report.encoding_used = encoding
-    mapped = _apply_mapping(frame, DAMAGE_COLUMN_ALIASES, DAMAGE_STANDARD_COLUMNS, report)
-    return mapped, report
+
+    frames = []
+    for name, target in sources:
+        frame, encoding = read_csv_tolerant(target)
+        report.encoding_used = encoding
+        mapped = _apply_mapping(frame, DAMAGE_COLUMN_ALIASES, DAMAGE_STANDARD_COLUMNS, report)
+        if name:
+            mapped[COL_SOURCE] = name
+            report.messages.append(f"{name}: {len(mapped):,}건 ({target.name})")
+        frames.append(mapped)
+    merged = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
+    report.row_count = int(len(merged))
+    return merged, report
 
 
 def load_school_zone_csv(

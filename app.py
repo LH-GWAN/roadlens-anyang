@@ -150,15 +150,21 @@ def page_intro(cfg: config.AppConfig) -> None:
         pd.DataFrame(
             [
                 {
+                    "데이터": "경기도 안양시_도로위험물 현황 (포트홀·균열)",
+                    "출처": "https://www.data.go.kr/data/15096553/fileData.do",
+                    "적재 방식": "data/raw/anyang_road_hazard.csv",
+                    "현재 사용 중": ("테스트 샘플" if load_report.is_sample else "실제 파일"),
+                },
+                {
                     "데이터": "경기도 안양시_도로부속물 파손 현황",
                     "출처": "https://www.data.go.kr/data/15096549/fileData.do",
-                    "적재 방식": "사용자가 내려받아 data/raw/anyang_road_damage.csv 에 저장",
+                    "적재 방식": "data/raw/anyang_road_damage.csv",
                     "현재 사용 중": ("테스트 샘플" if load_report.is_sample else "실제 파일"),
                 },
                 {
                     "데이터": "전국어린이보호구역표준데이터",
                     "출처": "https://www.data.go.kr/data/15012891/standard.do",
-                    "적재 방식": "사용자가 내려받아 data/raw/school_zones.csv 에 저장 (안양시 필터)",
+                    "적재 방식": "data/raw/school_zones.csv (안양시만 필터)",
                     "현재 사용 중": ("테스트 샘플" if sz_load.is_sample else "실제 파일"),
                 },
                 {

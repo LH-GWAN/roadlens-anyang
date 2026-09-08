@@ -71,26 +71,26 @@ def cluster_damage_points(
         )
         return result, info
 
-    radians = np.radians(coords)
+    # 안양시 정도의 좁은 범위에서는 위경도를 미터 단위 평면 좌표로 바꿔
+    # 유클리드 거리로 군집화해도 오차가 무시할 수준이고, haversine 보다 훨씬 빠르다.
+    lat0 = float(np.radians(coords[:, 0].mean()))
+    xy = np.column_stack([
+        EARTH_RADIUS_M * np.radians(coords[:, 1]) * np.cos(lat0),
+        EARTH_RADIUS_M * np.radians(coords[:, 0]),
+    ])
     labels = None
     used = None
 
-    if algorithm in {"auto", "hdbscan"}:
+    if algorithm == "hdbscan":
         try:
-            import inspect
-
             from sklearn.cluster import HDBSCAN  # scikit-learn >= 1.3
 
-            kwargs: dict[str, Any] = {
-                "min_cluster_size": max(2, int(min_samples)),
-                "metric": "haversine",
-                "cluster_selection_epsilon": eps_m / EARTH_RADIUS_M,
-            }
-            # sklearn 1.9+ 의 copy 기본값 변경 경고를 피한다(입력은 이미 임시 배열).
-            if "copy" in inspect.signature(HDBSCAN).parameters:
-                kwargs["copy"] = True
-            model = HDBSCAN(**kwargs)
-            labels = model.fit_predict(radians)
+            model = HDBSCAN(
+                min_cluster_size=max(2, int(min_samples)),
+                cluster_selection_epsilon=float(eps_m),
+                copy=True,
+            )
+            labels = model.fit_predict(xy)
             used = "HDBSCAN (scikit-learn)"
         except Exception as exc:  # 미지원 버전 등
             info["hdbscan_error"] = str(exc)
@@ -99,14 +99,25 @@ def cluster_damage_points(
     if labels is None:
         from sklearn.cluster import DBSCAN
 
-        model = DBSCAN(
-            eps=eps_m / EARTH_RADIUS_M,
-            min_samples=max(2, int(min_samples)),
-            metric="haversine",
-            algorithm="ball_tree",
+        # 수만 건이 좁은 지역에 몰려 있으면 점마다 이웃이 수천 개라 DBSCAN 이 느리다.
+        # eps 의 1/4 크기 격자로 점을 묶고 격자당 건수를 가중치로 주면
+        # 결과는 거의 같으면서 계산량이 크게 준다(격자 수 << 점 수).
+        cell = max(float(eps_m) / 4.0, 1.0)
+        cell_idx = np.floor(xy / cell).astype(np.int64)
+        uniq, inverse, counts = np.unique(
+            cell_idx, axis=0, return_inverse=True, return_counts=True
         )
-        labels = model.fit_predict(radians)
+        centers = (uniq + 0.5) * cell
+        model = DBSCAN(
+            eps=float(eps_m),
+            min_samples=max(2, int(min_samples)),
+            algorithm="kd_tree",
+        )
+        cell_labels = model.fit(centers, sample_weight=counts).labels_
+        labels = cell_labels[inverse.ravel()]
         used = "DBSCAN"
+        info["grid_cell_m"] = cell
+        info["grid_cells"] = int(len(uniq))
 
     result = frame.copy()
     result["cluster"] = labels.astype(int)

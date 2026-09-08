@@ -23,6 +23,11 @@ ASSETS_DIR = PROJECT_ROOT / "assets"
 
 # 사용자가 직접 내려받아 저장하는 원본 CSV 경로
 DAMAGE_CSV_PATH = DATA_RAW_DIR / "anyang_road_damage.csv"
+# 파손 이력은 안양시 공공데이터 2종을 함께 읽는다 (파일이 있는 것만 사용).
+DAMAGE_CSV_SOURCES: list[tuple[str, Path]] = [
+    ("도로위험물 현황", DATA_RAW_DIR / "anyang_road_hazard.csv"),
+    ("도로부속물 파손 현황", DAMAGE_CSV_PATH),
+]
 SCHOOL_ZONE_CSV_PATH = DATA_RAW_DIR / "school_zones.csv"
 
 # 테스트/데모 전용 샘플 (실제 안양시 데이터가 아님을 화면에서 반드시 표기)

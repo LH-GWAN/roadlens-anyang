@@ -6,6 +6,7 @@ import pandas as pd
 
 from . import config
 from .schemas import (
+    COL_SOURCE,
     COL_BASE_DATE,
     COL_CATEGORY_NO,
     COL_COLLECTED_AT,
@@ -132,6 +133,9 @@ def clean_damage_frame(
 def _default_dedup_subset(frame: pd.DataFrame) -> list[str]:
     """분류번호가 있으면 그것을 기준으로, 없으면 좌표+유형+수집날짜를 기준으로."""
     if COL_CATEGORY_NO in frame.columns and frame[COL_CATEGORY_NO].notna().any():
+        # 여러 데이터셋을 합친 경우 분류번호가 겹치므로 출처와 함께 본다.
+        if COL_SOURCE in frame.columns:
+            return [COL_SOURCE, COL_CATEGORY_NO]
         return [COL_CATEGORY_NO]
     candidates = [COL_LAT, COL_LON, COL_HAZARD_TYPE, COL_COLLECTED_AT]
     return [c for c in candidates if c in frame.columns]

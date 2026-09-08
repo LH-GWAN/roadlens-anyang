@@ -24,6 +24,7 @@ COL_START_NODE = "start_node"        # 시작노드
 COL_END_NODE = "end_node"            # 끝노드
 COL_ROAD_NAME = "road_address"       # 도로명주소
 COL_BASE_DATE = "base_date"          # 데이터기준일자
+COL_SOURCE = "source"                # 출처 데이터셋 이름 (여러 CSV 를 합칠 때)
 
 DAMAGE_STANDARD_COLUMNS = [
     COL_CATEGORY_NO,
