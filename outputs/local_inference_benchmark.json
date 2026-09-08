@@ -1,0 +1,16 @@
+{
+  "measured_at": "2026-09-08",
+  "model": "models/best.onnx",
+  "input_image": "outputs/example_detection.jpg",
+  "image_shape": [
+    600,
+    600,
+    3
+  ],
+  "runs": 20,
+  "includes": "전처리(리사이즈 640)+ONNX 추론+후처리(NMS)",
+  "device": "CPU, arm64, Darwin 26.6.2",
+  "mean_ms": 17.1,
+  "min_ms": 14.9,
+  "max_ms": 20.6
+}
